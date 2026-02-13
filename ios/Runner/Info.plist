@@ -46,11 +46,11 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>TukGuard needs your location to analyze risk zones and provide safety recommendations.</string>
+	<string>LankaRide needs your location to track drivers and provide real-time ride services.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>TukGuard needs your location to analyze risk zones and provide safety recommendations.</string>
+	<string>LankaRide needs your location to track drivers and provide real-time ride services.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>TukGuard needs your location to analyze risk zones and provide safety recommendations.</string>
+	<string>LankaRide needs your location to track drivers and provide real-time ride services.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Lanka Ride needs access to your camera to let you take profile pictures.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

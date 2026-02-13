@@ -99,6 +99,7 @@ flutter:
     - assets/images/lankaride_wallpaper.png
     - assets/lottie/
     - assets/lottie/rickshaw.json
+    - assets/lottie/tuktuk_marker.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

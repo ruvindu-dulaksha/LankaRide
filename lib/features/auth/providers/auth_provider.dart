@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lanka_ride/core/constants/app_constants.dart';
@@ -134,6 +135,9 @@ class AuthService {
         await prefs.setString(AppConstants.userIdKey, user.uid);
         await prefs.setBool(AppConstants.hasSeenOnboardingKey, true);
         await prefs.setBool('has_valid_session', true);
+
+        // Ensure user document exists in Firestore
+        await _ensureUserDocument(user);
       }
 
       return user;
@@ -164,6 +168,9 @@ class AuthService {
         await prefs.setString(AppConstants.userIdKey, user.uid);
         await prefs.setBool(AppConstants.hasSeenOnboardingKey, true);
         await prefs.setBool('has_valid_session', true);
+
+        // Create user document in Firestore
+        await _createUserDocument(user, user.email?.split('@')[0] ?? 'Driver');
       }
 
       return user;
@@ -198,16 +205,55 @@ class AuthService {
         await user.updateDisplayName(displayName);
         await user.reload();
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(AppConstants.userIdKey, user.uid);
-        await prefs.setBool(AppConstants.hasSeenOnboardingKey, true);
-        await prefs.setBool('has_valid_session', true);
+        // Create user document in Firestore with all required fields
+        await _createUserDocument(user, displayName);
       }
 
       return _auth!.currentUser; // Get updated user
     } catch (e) {
       debugPrint('Error creating user: $e');
       throw Exception(_getAuthErrorMessage(e));
+    }
+  }
+
+  // Create initial user document in Firestore
+  Future<void> _createUserDocument(User user, String displayName) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': displayName,
+        'email': user.email ?? '',
+        'phone': user.phoneNumber ?? '',
+        'latitude': 6.9271, // Default Colombo location
+        'longitude': 79.8612,
+        'is_live': false,
+        'vehicle_color': 'Yellow', // Default tuk-tuk color
+        'license_plate': 'TBD',
+        'rating': 5.0,
+        'total_trips': 0,
+        'last_updated': FieldValue.serverTimestamp(),
+        'photo_path': null,
+        'created_at': FieldValue.serverTimestamp(),
+      });
+      debugPrint('✅ User document created in Firestore');
+    } catch (e) {
+      debugPrint('❌ Error creating user document: $e');
+    }
+  }
+
+  // Ensure user document exists (for existing users)
+  Future<void> _ensureUserDocument(User user) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        // Create document if it doesn't exist
+        await _createUserDocument(user, user.displayName ?? 'Driver');
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking user document: $e');
     }
   }
 

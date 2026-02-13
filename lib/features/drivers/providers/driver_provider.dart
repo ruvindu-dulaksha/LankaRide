@@ -20,12 +20,18 @@ final activeDriversProvider =
       final radiusKm =
           params['radiusKm'] as double? ?? 5.0; // Default 5km radius
 
+      // Optimized query with proper indexing and limits
       return db
           .collection('users')
-          .where('is_live', isEqualTo: true) // Only fetch live users (drivers)
+          .where('is_live', isEqualTo: true)
+          .orderBy(
+            'last_updated',
+            descending: true,
+          ) // Show recently active first
+          .limit(50) // Limit to 50 drivers max for performance
           .snapshots()
           .map((snapshot) {
-            return snapshot.docs
+            final drivers = snapshot.docs
                 .map((doc) => DriverModel.fromFirestore(doc))
                 .where((driver) {
                   // Only drivers with valid coordinates
@@ -34,7 +40,7 @@ final activeDriversProvider =
                     return false;
                   }
 
-                  // Calculate distance using simple formula
+                  // Fast distance calculation
                   final lat1 = userLat;
                   final lat2 = driver.latitude ?? 0.0;
                   final lng1 = userLng;
@@ -50,6 +56,8 @@ final activeDriversProvider =
                   return distanceKm <= radiusKm;
                 })
                 .toList();
+
+            return drivers;
           });
     });
 
@@ -70,11 +78,11 @@ Future<void> updateDriverLocation({
   required double latitude,
   required double longitude,
 }) async {
-  await FirebaseFirestore.instance.collection('users').doc(driverId).update({
+  await FirebaseFirestore.instance.collection('users').doc(driverId).set({
     'latitude': latitude,
     'longitude': longitude,
     'last_updated': FieldValue.serverTimestamp(),
-  });
+  }, SetOptions(merge: true));
 }
 
 // Function to set driver as live
@@ -82,8 +90,8 @@ Future<void> setDriverLive({
   required String driverId,
   required bool isLive,
 }) async {
-  await FirebaseFirestore.instance.collection('users').doc(driverId).update({
+  await FirebaseFirestore.instance.collection('users').doc(driverId).set({
     'is_live': isLive,
     'last_updated': FieldValue.serverTimestamp(),
-  });
+  }, SetOptions(merge: true));
 }

@@ -69,8 +69,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDarkMode
-                ? [Color(0xFF1A1B23), Color(0xFF0F1419), Color(0xFF1A1B23)]
-                : [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFF5F7FA)],
+                ? [
+                    const Color(0xFF1A1B23),
+                    const Color(0xFF0F1419),
+                    const Color(0xFF1A1B23),
+                  ]
+                : [
+                    const Color(0xFFF5F7FA),
+                    const Color(0xFFE8EEF7),
+                    const Color(0xFFF5F7FA),
+                  ],
           ),
         ),
         child: SafeArea(
@@ -118,7 +126,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                                   ],
                                 ),
                               ),
-                              child: Icon(
+                              child: const Icon(
                                 Icons.lock_reset,
                                 size: 80,
                                 color: AppTheme.primary,

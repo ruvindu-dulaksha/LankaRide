@@ -40,7 +40,7 @@ class ScannerPanel extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.radar, color: AppTheme.primary, size: 24)
+                const Icon(Icons.radar, color: AppTheme.primary, size: 24)
                     .animate(onPlay: (controller) => controller.repeat())
                     .rotate(duration: 3000.ms),
                 const SizedBox(width: 12),

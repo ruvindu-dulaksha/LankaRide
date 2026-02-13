@@ -65,20 +65,20 @@ class ApiService {
   Future<PredictionResponse> predictRisk({
     required double latitude,
     required double longitude,
-    required double rainLevel,
-    required double unionDensity,
+    double rainLevel = 0.0,
+    double unionDensity = 0.0,
   }) async {
     try {
       debugPrint('\n🚀 Starting risk prediction...');
       debugPrint('📍 Location: ($latitude, $longitude)');
-      debugPrint('☔ Rain Level: $rainLevel');
-      debugPrint('🚗 Union Density: $unionDensity');
+      debugPrint('☔ Client Rain Hint: $rainLevel');
+      debugPrint('🚗 Nearby Drivers: $unionDensity');
 
       final requestData = {
         'latitude': latitude,
         'longitude': longitude,
-        'rain_level': rainLevel,
-        'union_density': unionDensity,
+        'rain_level': rainLevel, // Fallback if server weather API fails
+        'union_density': unionDensity, // Real-time driver count from Firebase
       };
 
       debugPrint('📡 Sending request to backend...');
@@ -159,6 +159,15 @@ class PredictionResponse {
   bool get isRedZone => zone.toLowerCase() == 'red';
   bool get isYellowZone => zone.toLowerCase() == 'yellow';
   bool get isGreenZone => zone.toLowerCase() == 'green';
+
+  // Metadata helpers
+  String get locationName => metadata?['location'] ?? 'Unknown';
+  String get demandLevel => metadata?['demand_level'] ?? '';
+  double get trafficIntensity =>
+      (metadata?['traffic_intensity'] as num?)?.toDouble() ?? 0.0;
+  double get rainMm => (metadata?['rain_mm'] as num?)?.toDouble() ?? 0.0;
+  int get unionCapacity => (metadata?['union_capacity'] as num?)?.toInt() ?? 0;
+  int get poiDensity => (metadata?['poi_density'] as num?)?.toInt() ?? 0;
 }
 
 class ApiException implements Exception {

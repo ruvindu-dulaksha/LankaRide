@@ -152,7 +152,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Sign Out', style: TextStyle(color: AppTheme.error)),
+            child: const Text(
+              'Sign Out',
+              style: TextStyle(color: AppTheme.error),
+            ),
           ),
         ],
       ),
@@ -177,8 +180,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDarkMode
-                ? [Color(0xFF1A1B23), Color(0xFF0F1419), Color(0xFF1A1B23)]
-                : [Color(0xFFF5F7FA), Color(0xFFFFFFFF), Color(0xFFF5F7FA)],
+                ? [
+                    const Color(0xFF1A1B23),
+                    const Color(0xFF0F1419),
+                    const Color(0xFF1A1B23),
+                  ]
+                : [
+                    const Color(0xFFF5F7FA),
+                    const Color(0xFFFFFFFF),
+                    const Color(0xFFF5F7FA),
+                  ],
           ),
         ),
         child: SafeArea(
@@ -229,7 +240,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             )
                           : Text(
                               _isEditing ? 'Save' : 'Edit',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: AppTheme.primary,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -517,7 +528,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   .read(themeModeProvider.notifier)
                                   .toggleTheme();
                             },
-                            activeColor: AppTheme.primary,
+                            activeThumbColor: AppTheme.primary,
                             activeTrackColor: AppTheme.primary.withOpacity(0.5),
                           ),
                         ],
@@ -541,9 +552,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
+                        children: [
                           Icon(Icons.logout, size: 20),
                           SizedBox(width: 8),
                           Text(

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,12 +54,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Position? _currentPosition;
   bool _permissionGranted = false;
   Timer? _locationUpdateTimer;
+  StreamSubscription<Position>? _positionStream;
   String? _currentUserId;
+  LatLng? _centerLocation; // Store center location for driver loading
+  BitmapDescriptor? _tukTukIcon; // Custom icon for driver markers
+  Timer? _debounceTimer; // Debounce timer for location updates
+  DateTime? _lastDriverReload; // Track last driver reload time
 
   @override
   void initState() {
     super.initState();
     _loadMapStyles();
+    _loadTukTukIcon();
     _initializeLocation();
   }
 
@@ -75,8 +83,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _mapController?.dispose();
     // Set user as offline when leaving map
     _setUserOffline();
-    // Cancel location update timer
+    // Cancel all timers and streams
     _locationUpdateTimer?.cancel();
+    _positionStream?.cancel();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -84,13 +94,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-              'is_live': false,
-              'last_updated': FieldValue.serverTimestamp(),
-            });
+        // Use set with merge to avoid errors if document doesn't exist
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'is_live': false,
+          'last_updated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
         debugPrint('✅ User set offline');
       }
     } catch (e) {
@@ -102,15 +110,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-              'latitude': position.latitude,
-              'longitude': position.longitude,
-              'is_live': true,
-              'last_updated': FieldValue.serverTimestamp(),
-            });
+        // Use set with merge to create document if it doesn't exist
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'is_live': true,
+          'last_updated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
         debugPrint(
           '📍 Updated user location: ${position.latitude}, ${position.longitude}',
         );
@@ -121,13 +127,74 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _startLocationTracking() {
-    // Update location every 15 seconds
-    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    debugPrint('🔄 Starting location tracking...');
+
+    // Listen to real-time location changes with optimized settings
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter:
+          50, // Update every 50 meters (reduced from 10 for performance)
+    );
+
+    _positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: locationSettings,
+        ).listen((Position position) {
+          debugPrint(
+            '📍 Location changed: ${position.latitude}, ${position.longitude}',
+          );
+
+          // Batch all state updates together
+          _currentPosition = position;
+          final newLatLng = LatLng(position.latitude, position.longitude);
+
+          // Update UI and provider in single batch
+          setState(() {
+            // Update marker position
+            _markers.removeWhere((m) => m.markerId.value == 'user');
+            _markers.add(
+              Marker(
+                markerId: const MarkerId('user'),
+                position: newLatLng,
+                icon: BitmapDescriptor.defaultMarkerWithHue(
+                  BitmapDescriptor.hueAzure,
+                ),
+                infoWindow: const InfoWindow(title: 'You'),
+              ),
+            );
+          });
+
+          if (mounted) {
+            ref.read(currentLocationProvider.notifier).state = newLatLng;
+          }
+
+          // Smooth camera movement without animation (faster)
+          _mapController?.moveCamera(CameraUpdate.newLatLng(newLatLng));
+
+          // Debounced Firestore update
+          _debounceTimer?.cancel();
+          _debounceTimer = Timer(const Duration(seconds: 3), () {
+            if (mounted) _updateUserLocation(position);
+          });
+
+          // Reload drivers only if significant distance change (every 200m)
+          final now = DateTime.now();
+          if (_lastDriverReload == null ||
+              now.difference(_lastDriverReload!) >
+                  const Duration(seconds: 10)) {
+            _lastDriverReload = now;
+            _loadActiveDrivers(newLatLng);
+          }
+        });
+
+    // Reduced backup interval for better performance
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       if (_currentPosition != null) {
         _updateUserLocation(_currentPosition!);
       }
     });
-    debugPrint('🔄 Location tracking started');
+
+    debugPrint('✅ Location tracking started with optimized settings');
   }
 
   Future<void> _loadMapStyles() async {
@@ -139,6 +206,70 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       debugPrint('Map styles loaded successfully');
     } catch (e) {
       debugPrint('Error loading map style: $e');
+    }
+  }
+
+  Future<void> _loadTukTukIcon() async {
+    try {
+      // Create a custom marker icon using a green circle with tuk-tuk emoji
+      final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+      final Canvas canvas = Canvas(pictureRecorder);
+      const double size = 120.0;
+
+      // Draw green circular background
+      final Paint circlePaint = Paint()
+        ..color =
+            const Color(0xFF10B981) // Green color
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(
+        const Offset(size / 2, size / 2),
+        size / 2,
+        circlePaint,
+      );
+
+      // Draw white border
+      final Paint borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0;
+
+      canvas.drawCircle(
+        const Offset(size / 2, size / 2),
+        size / 2 - 2,
+        borderPaint,
+      );
+
+      // Draw tuk-tuk emoji/text
+      final textPainter = TextPainter(
+        text: const TextSpan(text: '🛺', style: TextStyle(fontSize: 60.0)),
+        textDirection: TextDirection.ltr,
+      );
+
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset((size - textPainter.width) / 2, (size - textPainter.height) / 2),
+      );
+
+      // Convert to image
+      final ui.Image image = await pictureRecorder.endRecording().toImage(
+        size.toInt(),
+        size.toInt(),
+      );
+
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      if (byteData != null) {
+        final Uint8List bytes = byteData.buffer.asUint8List();
+        _tukTukIcon = BitmapDescriptor.fromBytes(bytes);
+        debugPrint('🛺 TukTuk marker icon loaded successfully');
+      }
+    } catch (e) {
+      debugPrint('Error loading tuk-tuk icon: $e');
+      // Will fall back to default orange marker
     }
   }
 
@@ -156,8 +287,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  // Ensure user document exists in Firestore (for existing users without documents)
+  Future<void> _ensureUserDocumentExists() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        debugPrint('📝 Creating missing user document for ${user.email}');
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': user.displayName ?? user.email?.split('@')[0] ?? 'Driver',
+          'email': user.email ?? '',
+          'phone': user.phoneNumber ?? '',
+          'latitude': 6.9271, // Default Colombo location
+          'longitude': 79.8612,
+          'is_live': false,
+          'vehicle_color': 'Yellow',
+          'license_plate': 'TBD',
+          'rating': 5.0,
+          'total_trips': 0,
+          'last_updated': FieldValue.serverTimestamp(),
+          'photo_path': null,
+          'created_at': FieldValue.serverTimestamp(),
+        });
+        debugPrint('✅ User document created successfully');
+      } else {
+        debugPrint('✅ User document already exists');
+      }
+    } catch (e) {
+      debugPrint('❌ Error ensuring user document: $e');
+    }
+  }
+
   Future<void> _initializeLocation() async {
     debugPrint('Initializing location...');
+
+    // Ensure user document exists in Firestore (for existing users)
+    await _ensureUserDocumentExists();
 
     // Check and request location permissions
     LocationPermission permission = await Geolocator.checkPermission();
@@ -205,6 +376,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
 
       final currentLatLng = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
       ref.read(currentLocationProvider.notifier).state = currentLatLng;
 
       // Update user location in Firestore and set as live
@@ -227,10 +399,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       debugPrint(
         'Using default location: ${AppConstants.defaultLat}, ${AppConstants.defaultLng}',
       );
-      final defaultLocation = LatLng(
+      const defaultLocation = LatLng(
         AppConstants.defaultLat,
         AppConstants.defaultLng,
       );
+      if (!mounted) return;
       ref.read(currentLocationProvider.notifier).state = defaultLocation;
 
       // Create a fake position for default location
@@ -251,15 +424,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
       // Update Firestore with default location and set as live
       if (_currentUserId != null) {
+        // Use set with merge to create document if needed
         await FirebaseFirestore.instance
             .collection('users')
             .doc(_currentUserId)
-            .update({
+            .set({
               'latitude': AppConstants.defaultLat,
               'longitude': AppConstants.defaultLng,
               'is_live': true,
               'last_updated': FieldValue.serverTimestamp(),
-            });
+            }, SetOptions(merge: true));
         debugPrint('📍 Set user to default location');
       }
 
@@ -288,15 +462,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _loadActiveDrivers(LatLng center) {
-    // Fetch active drivers from Firebase within 5km radius
+    // Store center location to be used in build method
+    setState(() {
+      _centerLocation = center;
+    });
+
+    // Immediately fetch drivers without waiting for build
     final params = {
       'latitude': center.latitude,
       'longitude': center.longitude,
       'radiusKm': 5.0,
     };
 
-    ref.listen(activeDriversProvider(params), (prev, next) {
-      next.whenData((drivers) {
+    // Use watch to get current snapshot, not listen
+    Future.microtask(() {
+      if (!mounted) return;
+      final driversAsync = ref.read(activeDriversProvider(params));
+      driversAsync.whenData((drivers) {
+        if (!mounted) return;
         _createDriverMarkers(drivers);
         ref.read(activeDriversNearbyProvider.notifier).state = drivers;
       });
@@ -304,40 +487,55 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _createDriverMarkers(List<DriverModel> drivers) {
+    // Get existing driver IDs
+    final existingDriverIds = _markers
+        .where((m) => m.markerId.value.startsWith('driver_'))
+        .map((m) => m.markerId.value)
+        .toSet();
+
+    final newDriverIds = drivers.map((d) => 'driver_${d.id}').toSet();
+
+    // Only update if there are actual changes
+    if (existingDriverIds.length == newDriverIds.length &&
+        existingDriverIds.containsAll(newDriverIds)) {
+      return; // No changes, skip update
+    }
+
     final driverMarkers = <Marker>{};
+    final icon =
+        _tukTukIcon ??
+        BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
 
     for (final driver in drivers) {
-      final marker = Marker(
-        markerId: MarkerId('driver_${driver.id}'),
-        position: LatLng(
-          driver.latitude ?? 6.9271, // Default to Colombo if no location
-          driver.longitude ?? 79.8612,
+      driverMarkers.add(
+        Marker(
+          markerId: MarkerId('driver_${driver.id}'),
+          position: LatLng(
+            driver.latitude ?? 6.9271,
+            driver.longitude ?? 79.8612,
+          ),
+          icon: icon, // Reuse same icon instance
+          infoWindow: InfoWindow(
+            title: '🛺 ${driver.licensePlate ?? 'TukTuk'}',
+            snippet:
+                '⭐ ${driver.rating.toStringAsFixed(1)} • ${driver.totalTrips} trips',
+          ),
+          onTap: () {
+            debugPrint('Tapped driver: ${driver.name}');
+          },
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          BitmapDescriptor.hueOrange, // TukTuk color
-        ),
-        infoWindow: InfoWindow(
-          title: driver.licensePlate ?? 'Anonymous Driver',
-          snippet:
-              '⭐ ${driver.rating.toStringAsFixed(1)} • ${driver.totalTrips} trips • ${driver.vehicleColor ?? 'Unknown'}',
-        ),
-        onTap: () {
-          // Handle driver tap
-          debugPrint('Tapped driver: ${driver.name}');
-        },
       );
-
-      driverMarkers.add(marker);
     }
 
     setState(() {
-      // Remove old driver markers
       _markers.removeWhere((m) => m.markerId.value.startsWith('driver_'));
-      // Add new driver markers
       _markers.addAll(driverMarkers);
     });
 
-    ref.read(driverMarkersProvider.notifier).state = driverMarkers;
+    if (mounted) {
+      ref.read(driverMarkersProvider.notifier).state = driverMarkers;
+    }
+    debugPrint('🚕 Updated ${driverMarkers.length} driver markers');
   }
 
   Future<void> _analyzeRisk() async {
@@ -348,18 +546,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       return;
     }
 
+    if (!mounted) return;
     ref.read(isAnalyzingProvider.notifier).state = true;
 
     try {
       final apiService = ref.read(apiServiceProvider);
 
-      // Production: Send real location with default values
-      // In future, integrate real-time weather API and driver GPS clustering
+      // Send location + real-time context from Firebase
+      final nearbyDrivers = ref.read(activeDriversNearbyProvider);
       final response = await apiService.predictRisk(
         latitude: currentLocation.latitude,
         longitude: currentLocation.longitude,
-        rainLevel: 0.0, // Get from weather API in production
-        unionDensity: 0.0, // Get from real driver clustering in production
+        rainLevel: 0.0, // Client weather hint (server fetches its own)
+        unionDensity: nearbyDrivers.length
+            .toDouble(), // Live driver count from Firebase
       );
 
       // Draw zone circle
@@ -377,7 +577,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     } catch (e) {
       _showErrorDialog('Unexpected error occurred: $e');
     } finally {
-      ref.read(isAnalyzingProvider.notifier).state = false;
+      if (mounted) {
+        ref.read(isAnalyzingProvider.notifier).state = false;
+      }
     }
   }
 
@@ -401,7 +603,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       strokeWidth: 2,
     );
 
-    ref.read(zoneCircleProvider.notifier).state = circle;
+    if (mounted) {
+      ref.read(zoneCircleProvider.notifier).state = circle;
+    }
   }
 
   void _showErrorDialog(String message) {
@@ -437,6 +641,25 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final zoneCircle = ref.watch(zoneCircleProvider);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDarkMode ? Colors.white : Colors.black87;
+
+    // Watch active drivers stream for real-time updates
+    if (_centerLocation != null) {
+      final params = {
+        'latitude': _centerLocation!.latitude,
+        'longitude': _centerLocation!.longitude,
+        'radiusKm': 5.0,
+      };
+
+      final driversAsync = ref.watch(activeDriversProvider(params));
+      driversAsync.whenData((drivers) {
+        // Avoid calling setState during build
+        Future.microtask(() {
+          if (!mounted) return;
+          _createDriverMarkers(drivers);
+          ref.read(activeDriversNearbyProvider.notifier).state = drivers;
+        });
+      });
+    }
 
     return Scaffold(
       body: Stack(
@@ -533,7 +756,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           Colors.transparent,
                         ],
                       )
-                    : LinearGradient(
+                    : const LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [Colors.transparent, Colors.transparent],

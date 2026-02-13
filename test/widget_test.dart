@@ -12,9 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lanka_ride/main.dart';
 
 void main() {
-  testWidgets('TukGuard app smoke test', (WidgetTester tester) async {
+  testWidgets('LankaRide app smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const ProviderScope(child: TukGuardApp()));
+    await tester.pumpWidget(const ProviderScope(child: LankaRideApp()));
 
     // Verify that the app loads
     await tester.pumpAndSettle();

@@ -7,11 +7,11 @@ class DriverMarkerWidget extends StatelessWidget {
   final bool isSelected;
 
   const DriverMarkerWidget({
-    Key? key,
+    super.key,
     required this.driverName,
     required this.rating,
     this.isSelected = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,12 +24,8 @@ class DriverMarkerWidget extends StatelessWidget {
           color: isSelected ? Colors.yellow : Colors.white,
           width: isSelected ? 3 : 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(

@@ -80,8 +80,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: isDarkMode
-                ? [bgColor, Color(0xFF0F1419), bgColor]
-                : [Color(0xFFF5F7FA), Color(0xFFE8EEF7), Color(0xFFF5F7FA)],
+                ? [bgColor, const Color(0xFF0F1419), bgColor]
+                : [
+                    const Color(0xFFF5F7FA),
+                    const Color(0xFFE8EEF7),
+                    const Color(0xFFF5F7FA),
+                  ],
           ),
         ),
         child: SafeArea(
@@ -223,7 +227,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.error_outline,
                                   color: AppTheme.error,
                                   size: 20,
@@ -364,7 +368,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () => context.push('/forgot-password'),
-                            child: Text(
+                            child: const Text(
                               'Forgot Password?',
                               style: TextStyle(
                                 color: AppTheme.primary,
@@ -439,7 +443,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () => context.push('/signup'),
-                      child: Text(
+                      child: const Text(
                         'Sign Up',
                         style: TextStyle(
                           color: AppTheme.primary,

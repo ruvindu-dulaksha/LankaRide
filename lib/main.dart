@@ -46,11 +46,11 @@ void main() async {
     ),
   );
 
-  runApp(const ProviderScope(child: TukGuardApp()));
+  runApp(const ProviderScope(child: LankaRideApp()));
 }
 
-class TukGuardApp extends ConsumerWidget {
-  const TukGuardApp({super.key});
+class LankaRideApp extends ConsumerWidget {
+  const LankaRideApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

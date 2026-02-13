@@ -126,6 +126,90 @@ class RiskDialog extends StatelessWidget {
 
             const SizedBox(height: 16),
 
+            // Location name
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: zoneColor.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.location_on, color: zoneColor, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    response.locationName,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: zoneColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 350.ms, duration: 400.ms),
+
+            const SizedBox(height: 16),
+
+            // Smart Stats Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatChip(
+                  context,
+                  Icons.speed,
+                  'Traffic',
+                  '${response.trafficIntensity.toStringAsFixed(1)}x',
+                  textColor,
+                ),
+                _buildStatChip(
+                  context,
+                  Icons.water_drop,
+                  'Rain',
+                  '${response.rainMm.toStringAsFixed(1)}mm',
+                  textColor,
+                ),
+                _buildStatChip(
+                  context,
+                  Icons.group,
+                  'Union',
+                  '${response.unionCapacity}',
+                  textColor,
+                ),
+              ],
+            ).animate().fadeIn(delay: 400.ms, duration: 400.ms),
+
+            const SizedBox(height: 12),
+
+            // Demand Level
+            if (response.demandLevel.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: zoneColor.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: zoneColor.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.trending_up, color: zoneColor, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Demand: ${response.demandLevel}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: textColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 450.ms, duration: 400.ms),
+
+            const SizedBox(height: 12),
+
             // Risk Score
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -145,9 +229,9 @@ class RiskDialog extends StatelessWidget {
                   ),
                 ),
               ],
-            ).animate().fadeIn(delay: 400.ms, duration: 400.ms),
+            ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
             // Additional info for Yellow zone
             if (response.isYellowZone)
@@ -180,7 +264,7 @@ class RiskDialog extends StatelessWidget {
                     ),
                   ],
                 ),
-              ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
+              ).animate().fadeIn(delay: 550.ms, duration: 400.ms),
 
             if (response.isYellowZone) const SizedBox(height: 16),
 
@@ -204,6 +288,35 @@ class RiskDialog extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatChip(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+    Color textColor,
+  ) {
+    return Column(
+      children: [
+        Icon(icon, size: 18, color: textColor.withOpacity(0.6)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: textColor.withOpacity(0.6),
+            fontSize: 10,
+          ),
+        ),
+      ],
     );
   }
 }

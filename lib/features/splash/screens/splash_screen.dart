@@ -171,7 +171,7 @@ class _SplashScreenState extends State<SplashScreen>
                     width: 200 * _controller.value,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(2),
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         colors: [AppTheme.primary, AppTheme.accent],
                       ),
                     ),

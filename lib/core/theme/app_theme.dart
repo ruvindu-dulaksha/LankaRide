@@ -26,7 +26,6 @@ class AppTheme {
         secondary: accent,
         error: error,
         surface: surface,
-        background: background,
       ),
       textTheme: TextTheme(
         displayLarge: GoogleFonts.inter(
@@ -104,7 +103,7 @@ class AppTheme {
           side: BorderSide(color: Colors.grey.shade200, width: 1),
         ),
       ),
-      iconTheme: IconThemeData(color: textLight),
+      iconTheme: const IconThemeData(color: textLight),
     );
   }
 
@@ -119,7 +118,6 @@ class AppTheme {
         secondary: accent,
         error: error,
         surface: surfaceDark,
-        background: dark,
       ),
       textTheme: TextTheme(
         displayLarge: GoogleFonts.inter(
