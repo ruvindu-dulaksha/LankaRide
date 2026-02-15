@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../drivers/providers/driver_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -19,6 +22,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _vehicleColorController = TextEditingController();
+  final _licensePlateController = TextEditingController();
   bool _isEditing = false;
   bool _isLoading = false;
   String? _message;
@@ -37,16 +42,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _vehicleColorController.dispose();
+    _licensePlateController.dispose();
     super.dispose();
   }
 
-  void _loadUserData() {
+  void _loadUserData() async {
     final authService = ref.read(authServiceProvider);
     final user = authService.currentUser;
     if (user != null) {
       _nameController.text = user.displayName ?? '';
       _emailController.text = user.email ?? '';
       _phoneController.text = user.phoneNumber ?? '';
+
+      // Load vehicle details from Firestore
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final data = userDoc.data();
+          if (data != null) {
+            _vehicleColorController.text = data['vehicle_color'] ?? '';
+            _licensePlateController.text = data['license_plate'] ?? '';
+          }
+        }
+      } catch (e) {
+        debugPrint('Error loading vehicle details: $e');
+      }
 
       // Load saved photo path
       _loadSavedPhoto();
@@ -98,11 +123,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
+      final user = authService.currentUser;
+
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Update Firebase Auth profile (name and photo)
       await authService.updateUserProfile(
         displayName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         photoFile: _selectedImageFile,
       );
+
+      // Update Firestore with vehicle details
+      final updates = <String, dynamic>{
+        'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'last_updated': FieldValue.serverTimestamp(),
+      };
+
+      // Only update vehicle fields if they have values
+      final vehicleColor = _vehicleColorController.text.trim();
+      final licensePlate = _licensePlateController.text.trim();
+
+      if (vehicleColor.isNotEmpty) {
+        updates['vehicle_color'] = vehicleColor;
+      }
+      if (licensePlate.isNotEmpty) {
+        updates['license_plate'] = licensePlate;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update(updates);
 
       // Reload saved photo path
       await _loadSavedPhoto();
@@ -411,6 +466,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   delay: 600,
                 ),
 
+                const SizedBox(height: 20),
+
+                // Vehicle Color Field
+                _buildProfileField(
+                  controller: _vehicleColorController,
+                  label: 'Vehicle Color',
+                  icon: Icons.color_lens_outlined,
+                  isEditable: _isEditing,
+                  delay: 700,
+                ),
+
+                const SizedBox(height: 20),
+
+                // License Plate Field
+                _buildProfileField(
+                  controller: _licensePlateController,
+                  label: 'License Plate',
+                  icon: Icons.badge_outlined,
+                  isEditable: _isEditing,
+                  delay: 800,
+                ),
+
                 const SizedBox(height: 40),
 
                 // Profile Stats
@@ -432,20 +509,127 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Account Statistics',
+                        'Account Info',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: Theme.of(context).textTheme.titleLarge?.color,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildStatItem('Trips', '24', Icons.map_outlined),
-                          _buildStatItem('Hours', '48', Icons.access_time),
-                          _buildStatItem('Rating', '4.8', Icons.star_outline),
-                        ],
+                      // Real-time stats from Firestore
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(FirebaseAuth.instance.currentUser?.uid)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          String memberSince = 'New';
+                          String? vehicleColor;
+                          String? licensePlate;
+
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            final data =
+                                snapshot.data!.data() as Map<String, dynamic>?;
+                            if (data != null) {
+                              // Member since
+                              final createdAt =
+                                  data['created_at'] as Timestamp?;
+                              if (createdAt != null) {
+                                final date = createdAt.toDate();
+                                final months =
+                                    DateTime.now().difference(date).inDays ~/
+                                    30;
+                                if (months < 1) {
+                                  memberSince = 'New';
+                                } else if (months < 12) {
+                                  memberSince = '${months}mo';
+                                } else {
+                                  memberSince = '${months ~/ 12}yr';
+                                }
+                              }
+                              final vColor = data['vehicle_color'];
+                              final lPlate = data['license_plate'];
+
+                              if (vColor != null &&
+                                  vColor.toString().isNotEmpty &&
+                                  vColor != 'TBD') {
+                                vehicleColor = vColor.toString();
+                              }
+                              if (lPlate != null &&
+                                  lPlate.toString().isNotEmpty &&
+                                  lPlate != 'TBD') {
+                                licensePlate = lPlate.toString();
+                              }
+                            }
+                          }
+
+                          // Build list of stat items dynamically
+                          final statItems = <Widget>[
+                            _buildStatItem(
+                              'Member',
+                              memberSince,
+                              Icons.calendar_today_outlined,
+                            ),
+                          ];
+
+                          if (vehicleColor != null) {
+                            statItems.add(
+                              _buildStatItem(
+                                'Vehicle',
+                                vehicleColor,
+                                Icons.color_lens_outlined,
+                              ),
+                            );
+                          }
+
+                          if (licensePlate != null) {
+                            statItems.add(
+                              _buildStatItem(
+                                'Plate',
+                                licensePlate,
+                                Icons.badge_outlined,
+                              ),
+                            );
+                          }
+
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: statItems,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Online drivers count
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final onlineCount = ref.watch(
+                            onlineDriversCountProvider,
+                          );
+                          return Row(
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                size: 10,
+                                color: AppTheme.accent,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                onlineCount.when(
+                                  data: (count) =>
+                                      '$count driver${count == 1 ? '' : 's'} online now',
+                                  loading: () => 'Checking online drivers...',
+                                  error: (_, __) => 'Unable to check',
+                                ),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: isDarkMode
+                                          ? Colors.white60
+                                          : Colors.black54,
+                                    ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -226,8 +226,8 @@ class AuthService {
         'latitude': 6.9271, // Default Colombo location
         'longitude': 79.8612,
         'is_live': false,
-        'vehicle_color': 'Yellow', // Default tuk-tuk color
-        'license_plate': 'TBD',
+        'vehicle_color': '', // To be filled by user
+        'license_plate': '', // To be filled by user
         'rating': 5.0,
         'total_trips': 0,
         'last_updated': FieldValue.serverTimestamp(),

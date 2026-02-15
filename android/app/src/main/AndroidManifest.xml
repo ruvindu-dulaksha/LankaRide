@@ -16,12 +16,9 @@
         android:icon="@mipmap/launcher_icon">
         
         <!-- Google Maps API Key -->
-        <!-- IMPORTANT: Replace with your actual Google Maps API key -->
-        <!-- The API key should match the one in your .env file (GOOGLE_MAPS_API_KEY) -->
-        <!-- See ENVIRONMENT_SETUP.md for instructions on obtaining and configuring this key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE"/>
+            android:value="AIzaSyAl5TtsfNcQL0iLuG_STqqYcW5zgEV19no"/>
         
         <activity
             android:name=".MainActivity"

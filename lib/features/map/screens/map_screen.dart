@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,7 +54,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Position? _currentPosition;
   bool _permissionGranted = false;
   Timer? _locationUpdateTimer;
+  Timer? _driverRefreshTimer;
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<dynamic>? _driversSubscription;
   String? _currentUserId;
   LatLng? _centerLocation; // Store center location for driver loading
   BitmapDescriptor? _tukTukIcon; // Custom icon for driver markers
@@ -85,7 +87,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _setUserOffline();
     // Cancel all timers and streams
     _locationUpdateTimer?.cancel();
+    _driverRefreshTimer?.cancel();
     _positionStream?.cancel();
+    _driversSubscription?.cancel();
     _debounceTimer?.cancel();
     super.dispose();
   }
@@ -195,6 +199,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
 
     debugPrint('✅ Location tracking started with optimized settings');
+  }
+
+  void _startDriverRefreshTimer(LatLng center) {
+    // Cancel any existing timer
+    _driverRefreshTimer?.cancel();
+
+    // Refresh drivers every 5 seconds to catch Firebase updates
+    _driverRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && _centerLocation != null) {
+        debugPrint('🔄 Periodic driver refresh...');
+        _loadActiveDrivers(_centerLocation!);
+      }
+    });
+
+    debugPrint('✅ Driver refresh timer started (every 5 seconds)');
   }
 
   Future<void> _loadMapStyles() async {
@@ -307,8 +326,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           'latitude': 6.9271, // Default Colombo location
           'longitude': 79.8612,
           'is_live': false,
-          'vehicle_color': 'Yellow',
-          'license_plate': 'TBD',
+          'vehicle_color': '', // To be filled by user
+          'license_plate': '', // To be filled by user
           'rating': 5.0,
           'total_trips': 0,
           'last_updated': FieldValue.serverTimestamp(),
@@ -391,6 +410,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       // Load real active drivers from Firebase
       _loadActiveDrivers(currentLatLng);
 
+      // Start periodic driver refresh
+      _startDriverRefreshTimer(currentLatLng);
+
       // Move camera to current location
       _mapController?.animateCamera(CameraUpdate.newLatLng(currentLatLng));
     } catch (e) {
@@ -462,28 +484,99 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _loadActiveDrivers(LatLng center) {
-    // Store center location to be used in build method
+    // Store center location
     setState(() {
       _centerLocation = center;
     });
 
-    // Immediately fetch drivers without waiting for build
-    final params = {
-      'latitude': center.latitude,
-      'longitude': center.longitude,
-      'radiusKm': 5.0,
-    };
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    debugPrint('🔍 Current user ID: $currentUserId');
 
-    // Use watch to get current snapshot, not listen
-    Future.microtask(() {
-      if (!mounted) return;
-      final driversAsync = ref.read(activeDriversProvider(params));
-      driversAsync.whenData((drivers) {
-        if (!mounted) return;
-        _createDriverMarkers(drivers);
-        ref.read(activeDriversNearbyProvider.notifier).state = drivers;
-      });
-    });
+    // Cancel previous subscription
+    _driversSubscription?.cancel();
+
+    // Subscribe directly to Firestore for real-time updates
+    _driversSubscription = FirebaseFirestore.instance
+        .collection('users')
+        .where('is_live', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            if (!mounted) return;
+
+            debugPrint(
+              '🚗 Firestore update: ${snapshot.docs.length} live users total',
+            );
+
+            // Log all live users for debugging
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              debugPrint(
+                '  📋 User: ${doc.id}, Name: ${data['name']}, Lat: ${data['latitude']}, Lng: ${data['longitude']}',
+              );
+            }
+
+            final drivers = <DriverModel>[];
+
+            for (final doc in snapshot.docs) {
+              // Exclude current user
+              if (doc.id == currentUserId) {
+                debugPrint('⏭️ Excluding current user: ${doc.id}');
+                continue;
+              }
+
+              try {
+                final driver = DriverModel.fromFirestore(doc);
+
+                // Check for valid coordinates
+                if ((driver.latitude ?? 0.0) == 0.0 ||
+                    (driver.longitude ?? 0.0) == 0.0) {
+                  debugPrint(
+                    '⚠️ Skipping driver ${driver.name}: invalid coordinates',
+                  );
+                  continue;
+                }
+
+                // Calculate distance
+                final lat1 = center.latitude;
+                final lat2 = driver.latitude ?? 0.0;
+                final lng1 = center.longitude;
+                final lng2 = driver.longitude ?? 0.0;
+
+                final distance = math.sqrt(
+                  (lat1 - lat2) * (lat1 - lat2) + (lng1 - lng2) * (lng1 - lng2),
+                );
+
+                final distanceKm = distance * 111;
+
+                if (distanceKm <= 5.0) {
+                  drivers.add(driver);
+                  debugPrint(
+                    '✅ Added driver: ${driver.name} at ${distanceKm.toStringAsFixed(2)}km',
+                  );
+                } else {
+                  debugPrint(
+                    '⚠️ Driver ${driver.name} too far: ${distanceKm.toStringAsFixed(2)}km',
+                  );
+                }
+              } catch (e) {
+                debugPrint('Error processing driver ${doc.id}: $e');
+              }
+            }
+
+            debugPrint('🎯 Final: ${drivers.length} drivers within 5km radius');
+
+            if (mounted) {
+              _createDriverMarkers(drivers);
+              ref.read(activeDriversNearbyProvider.notifier).state = drivers;
+            }
+          },
+          onError: (error) {
+            debugPrint('❌ Error loading drivers: $error');
+          },
+        );
+
+    debugPrint('🔄 Started Firestore listener for live drivers');
   }
 
   void _createDriverMarkers(List<DriverModel> drivers) {
@@ -515,11 +608,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             driver.longitude ?? 79.8612,
           ),
           icon: icon, // Reuse same icon instance
-          infoWindow: InfoWindow(
-            title: '🛺 ${driver.licensePlate ?? 'TukTuk'}',
-            snippet:
-                '⭐ ${driver.rating.toStringAsFixed(1)} • ${driver.totalTrips} trips',
-          ),
+          infoWindow: const InfoWindow(title: '🛺 TukTuk'),
           onTap: () {
             debugPrint('Tapped driver: ${driver.name}');
           },

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glassmorphism_ui/glassmorphism_ui.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../drivers/providers/driver_provider.dart';
 import '../screens/map_screen.dart';
 
 class ScannerPanel extends ConsumerWidget {
@@ -121,10 +122,12 @@ class ScannerPanel extends ConsumerWidget {
                 ),
                 Consumer(
                   builder: (context, ref, child) {
-                    final activeDrivers = ref.watch(
-                      activeDriversNearbyProvider,
+                    final onlineCount = ref.watch(onlineDriversCountProvider);
+                    final driverCount = onlineCount.when(
+                      data: (count) => count,
+                      loading: () => 0,
+                      error: (_, __) => 0,
                     );
-                    final driverCount = activeDrivers.length;
                     return _buildStatusIndicator(
                       context,
                       icon: Icons.local_taxi,

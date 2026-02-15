@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math' as math;
 import '../models/driver_model.dart';
@@ -20,18 +22,16 @@ final activeDriversProvider =
       final radiusKm =
           params['radiusKm'] as double? ?? 5.0; // Default 5km radius
 
-      // Optimized query with proper indexing and limits
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+      // Query: get all live drivers (ordered by data availability, not timestamp)
       return db
           .collection('users')
           .where('is_live', isEqualTo: true)
-          .orderBy(
-            'last_updated',
-            descending: true,
-          ) // Show recently active first
-          .limit(50) // Limit to 50 drivers max for performance
           .snapshots()
           .map((snapshot) {
             final drivers = snapshot.docs
+                .where((doc) => doc.id != currentUserId) // Exclude current user
                 .map((doc) => DriverModel.fromFirestore(doc))
                 .where((driver) {
                   // Only drivers with valid coordinates
@@ -61,7 +61,7 @@ final activeDriversProvider =
           });
     });
 
-// Provider to get all online drivers count
+// Provider to get all online drivers count (includes current user)
 final onlineDriversCountProvider = StreamProvider<int>((ref) {
   final db = ref.watch(firebaseProvider);
 
@@ -69,7 +69,11 @@ final onlineDriversCountProvider = StreamProvider<int>((ref) {
       .collection('users')
       .where('is_live', isEqualTo: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs.length);
+      .map((snapshot) {
+        final count = snapshot.docs.length;
+        debugPrint('📊 Total online drivers: $count (including you)');
+        return count;
+      });
 });
 
 // Function to update driver location
