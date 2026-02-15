@@ -607,7 +607,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           );
                           return Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.circle,
                                 size: 10,
                                 color: AppTheme.accent,
