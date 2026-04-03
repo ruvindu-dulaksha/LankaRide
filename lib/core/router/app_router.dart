@@ -7,6 +7,7 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/signup_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/profile/screens/scenario_demo_screen.dart';
 import '../../features/map/screens/map_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 
@@ -26,7 +27,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       // If not authenticated and trying to access protected routes, redirect to login
       if (!authenticated &&
           (state.matchedLocation == '/map' ||
-              state.matchedLocation == '/profile')) {
+              state.matchedLocation == '/profile' ||
+              state.matchedLocation == '/scenario-demos')) {
         return '/login';
       }
 
@@ -75,6 +77,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/map',
         name: 'map',
         builder: (context, state) => const MapScreen(),
+      ),
+      GoRoute(
+        path: '/scenario-demos',
+        name: 'scenario-demos',
+        builder: (context, state) => const ScenarioDemoScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

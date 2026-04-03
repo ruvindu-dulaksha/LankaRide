@@ -717,6 +717,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/scenario-demos'),
+                          icon: const Icon(Icons.play_circle_outline),
+                          label: const Text('Open Scenario Demo Tests (A-D)'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primary,
+                            side: BorderSide(
+                              color: AppTheme.primary.withOpacity(0.45),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Quick emergency validation: open all Chapter 5 scenario demos with expected outputs.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDarkMode ? Colors.white60 : Colors.black54,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                 ).animate().fadeIn(delay: 750.ms),
