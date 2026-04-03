@@ -309,6 +309,28 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth.uid == userId;
     }
+
+    // Driver outcome records (saved from map feedback)
+    match /driver_outcomes/{docId} {
+      allow create: if request.auth != null &&
+        request.resource.data.driver_id == request.auth.uid;
+      allow read: if request.auth != null &&
+        resource.data.driver_id == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Optional: hotspot analytics collections used by the app
+    match /hotspot_visits/{docId} {
+      allow create: if request.auth != null &&
+        request.resource.data.driver_id == request.auth.uid;
+      allow read: if request.auth != null &&
+        resource.data.driver_id == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /hotspot_stats/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }
 ```

@@ -1251,7 +1251,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         );
       }
     } catch (e) {
-      _showErrorDialog('Failed to save outcome: $e');
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        _showErrorDialog(
+          'Firestore permission denied for driver outcomes. '
+          'Please update Firestore security rules to allow authenticated writes to driver_outcomes.',
+        );
+      } else {
+        _showErrorDialog('Failed to save outcome: $e');
+      }
     }
   }
 
