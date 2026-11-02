@@ -373,7 +373,7 @@ flutter run
 ```xml
 <meta-data
     android:name="com.google.android.geo.API_KEY"
-    android:value="YOUR_ACTUAL_API_KEY"/>
+    android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE"/>
 ```
 
 #### 2. Firebase Connection Issues
